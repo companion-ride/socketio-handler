@@ -1,0 +1,16 @@
+[project]
+name = "socketio-handler"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "aiokafka>=0.12.0",
+    "fastapi>=0.128.8",
+    "loguru>=0.7.3",
+    "pydantic-settings>=2.11.0",
+    "pyjwt>=2.11.0",
+    "python-dotenv>=1.2.1",
+    "python-socketio[asyncio]>=5.16.1",
+    "uvicorn>=0.39.0",
+]
