@@ -1,0 +1,20 @@
+services:
+  socketio-handler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - companion-net
+
+networks:
+  companion-net:
+    external: true
+    name: companion-net
