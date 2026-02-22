@@ -85,6 +85,7 @@ fastapi_app = FastAPI(
     title="Companion SocketIO Handler",
     version="0.1.0",
     lifespan=lifespan,
+    root_path=os.getenv("ROOT_PATH", ""),
 )
 fastapi_app.include_router(health_router)
 
