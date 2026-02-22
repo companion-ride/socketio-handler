@@ -2,7 +2,8 @@ FROM python:3.13-alpine AS builder
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv==0.6.14
+RUN apk add --no-cache gcc musl-dev libffi-dev zlib-dev \
+    && pip install --no-cache-dir uv==0.6.14
 
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
