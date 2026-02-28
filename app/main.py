@@ -6,6 +6,8 @@ import urllib.request
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
 from loguru import logger
 
 from app.health.router import router as health_router
@@ -86,7 +88,19 @@ fastapi_app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
     root_path=os.getenv("ROOT_PATH", ""),
+    redirect_slashes=False,
+    docs_url=None,
 )
+
+
+@fastapi_app.get("/docs", include_in_schema=False, response_class=HTMLResponse)
+async def swagger_ui():
+    return get_swagger_ui_html(
+        openapi_url="./openapi.json",
+        title="Companion SocketIO Handler",
+    )
+
+
 fastapi_app.include_router(health_router)
 
 # Socket.IO wraps FastAPI — this is the ASGI entry point
