@@ -5,9 +5,9 @@ import socketio
 import urllib.request
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from loguru import logger
 
 from app.health.router import router as health_router
@@ -90,6 +90,7 @@ fastapi_app = FastAPI(
     root_path=os.getenv("ROOT_PATH", ""),
     redirect_slashes=False,
     docs_url=None,
+    openapi_url=None,
 )
 
 
@@ -99,6 +100,15 @@ async def swagger_ui():
         openapi_url="./openapi.json",
         title="Companion SocketIO Handler",
     )
+
+
+@fastapi_app.get("/openapi.json", include_in_schema=False)
+async def openapi(request: Request):
+    prefix = request.headers.get("x-forwarded-prefix", "")
+    spec = fastapi_app.openapi()
+    if prefix:
+        return JSONResponse({**spec, "servers": [{"url": prefix}]})
+    return JSONResponse(spec)
 
 
 fastapi_app.include_router(health_router)
