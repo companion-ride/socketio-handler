@@ -39,6 +39,14 @@ class KafkaConsumerService:
                 )
             )
         )
+        self._tasks.append(
+            asyncio.create_task(
+                self._consume_topic(
+                    settings.KAFKA_TOPIC_RIDE_NOTIFICATIONS,
+                    self._handle_ride_notification,
+                )
+            )
+        )
         logger.info("Kafka consumers started")
 
     async def _consume_topic(self, topic: str, handler) -> None:
@@ -79,8 +87,9 @@ class KafkaConsumerService:
 
     async def _handle_ride_update(self, data: dict) -> None:
         ride_id = data.get("ride_id")
+        event_name = data.get("event", "ride_update")
         if ride_id:
-            await sio.emit("ride_update", data, room=str(ride_id))
+            await sio.emit(event_name, data, room=str(ride_id))
 
     async def _handle_driver_assigned(self, data: dict) -> None:
         passenger_id = data.get("passenger_id")
@@ -103,6 +112,14 @@ class KafkaConsumerService:
             sid = registry.get_sid(str(passenger_id))
             if sid:
                 await sio.emit("driver_location", data, to=sid)
+
+    async def _handle_ride_notification(self, data: dict) -> None:
+        user_id = data.get("user_id")
+        event_name = data.get("event", "notification")
+        if user_id:
+            sid = registry.get_sid(str(user_id))
+            if sid:
+                await sio.emit(event_name, data, to=sid)
 
     async def stop(self) -> None:
         for task in self._tasks:

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     # Topics - consume
     KAFKA_TOPIC_RIDE_UPDATES: str = "ride-updates"
+    KAFKA_TOPIC_RIDE_NOTIFICATIONS: str = "ride-notifications"
     KAFKA_TOPIC_DRIVER_ASSIGNED: str = "driver-assigned"
     KAFKA_TOPIC_DRIVER_LOCATION_TO_PASSENGER: str = "driver-location-to-passenger"
 
