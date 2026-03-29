@@ -19,6 +19,10 @@ class RideRequest(BaseModel):
     pickup_lon: float = Field(..., ge=-180, le=180)
     dropoff_lat: float = Field(..., ge=-90, le=90)
     dropoff_lon: float = Field(..., ge=-180, le=180)
+    price: int | None = None
+    preferences: list[str] = []
+    baggage: str = "none"
+    comment: str = ""
 
 
 class RideCancel(BaseModel):

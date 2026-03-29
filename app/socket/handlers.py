@@ -101,6 +101,10 @@ async def ride_request(sid: str, data: dict):
         "passenger_id": user_id,
         "pickup": {"latitude": payload.pickup_lat, "longitude": payload.pickup_lon},
         "dropoff": {"latitude": payload.dropoff_lat, "longitude": payload.dropoff_lon},
+        "price": payload.price,
+        "preferences": payload.preferences,
+        "baggage": payload.baggage,
+        "comment": payload.comment,
         "action": "request",
     }
 
@@ -132,4 +136,21 @@ async def ride_cancel(sid: str, data: dict):
 
     await kafka_producer.send(settings.KAFKA_TOPIC_RIDE_REQUESTS, message, key=user_id)
     logger.info("Ride cancel from user={}, ride={}", user_id, payload.ride_id)
+    return {"status": "ok"}
+
+
+@sio.event
+async def ride_event(sid: str, data: dict):
+    user_id = registry.get_user_id(sid)
+    if not user_id:
+        return {"error": "Not authenticated"}
+
+    if not rate_limiter.is_allowed(sid, settings.RATE_LIMIT_DEFAULT_PER_SECOND):
+        return {"error": "Rate limit exceeded"}
+
+    if not isinstance(data, dict) or "action" not in data:
+        return {"error": "Missing action field"}
+
+    data["user_id"] = user_id
+    await kafka_producer.send(settings.KAFKA_TOPIC_RIDE_REQUESTS, data, key=user_id)
     return {"status": "ok"}
