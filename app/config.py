@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     KAFKA_TOPIC_DRIVER_ASSIGNED: str = "driver-assigned"
     KAFKA_TOPIC_DRIVER_LOCATION_TO_PASSENGER: str = "driver-location-to-passenger"
 
+    CONFIG_SERVICE_URL: str = ""
+    CONFIG_SERVICE_API_KEY: str = ""
+
     RATE_LIMIT_LOCATION_PER_SECOND: int = 2
     RATE_LIMIT_DEFAULT_PER_SECOND: int = 5
 
