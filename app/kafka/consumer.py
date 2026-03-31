@@ -104,6 +104,7 @@ class KafkaConsumerService:
         if driver_id:
             driver_sid = registry.get_sid(str(driver_id))
             if driver_sid:
+                await sio.emit("driver_assigned", data, to=driver_sid)
                 await sio.enter_room(driver_sid, ride_id)
 
     async def _handle_driver_location_to_passenger(self, data: dict) -> None:
