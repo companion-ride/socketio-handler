@@ -6,8 +6,10 @@ from pydantic import ValidationError
 
 from app.auth.jwt import decode_access_token
 from app.config import settings
+import httpx
+
 from app.kafka.producer import kafka_producer
-from app.schemas.events import LocationUpdate, RideCancel, RideRequest
+from app.schemas.events import ChatHistory, ChatMessage, LocationUpdate, RideCancel, RideRequest
 from app.socket.middleware import rate_limiter
 from app.socket.registry import registry
 from app.socket.server import sio
@@ -34,6 +36,24 @@ async def connect(sid: str, environ: dict, auth: dict | None = None):
 
     await registry.register(user_id, sid, role)
     logger.info("Connected: user_id={}, role={}, sid={}", user_id, role, sid)
+
+    # Auto-join user to their active chat rooms
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{settings.CHAT_SERVICE_URL}/chat/users/{user_id}/rooms",
+                headers={"Authorization": f"Bearer {_get_internal_token()}"},
+                timeout=5.0,
+            )
+            if resp.status_code == 200:
+                rooms = resp.json()
+                for room in rooms:
+                    room_id = room.get("room_id", "")
+                    if room_id:
+                        sio.enter_room(sid, f"chat_{room_id}")
+    except Exception:
+        pass  # Non-critical: user can still receive messages via direct emit
+
     return True
 
 
@@ -154,3 +174,91 @@ async def ride_event(sid: str, data: dict):
     data["user_id"] = user_id
     await kafka_producer.send(settings.KAFKA_TOPIC_RIDE_REQUESTS, data, key=user_id)
     return {"status": "ok"}
+
+
+@sio.event
+async def chat_message(sid: str, data: dict):
+    """Handle incoming chat message from client."""
+    user_id = registry.get_user_id(sid)
+    if not user_id:
+        await sio.emit("chat_error", {"error": "not authenticated", "code": "auth_error"}, to=sid)
+        return
+
+    if not rate_limiter.is_allowed(sid, settings.RATE_LIMIT_DEFAULT_PER_SECOND):
+        await sio.emit("chat_error", {"error": "rate limited", "code": "rate_limited"}, to=sid)
+        return
+
+    try:
+        msg = ChatMessage(**data)
+    except Exception as e:
+        await sio.emit("chat_error", {"error": str(e), "code": "validation_error", "room_id": data.get("room_id", "")}, to=sid)
+        return
+
+    await kafka_producer.send(
+        topic=settings.KAFKA_TOPIC_CHAT_INBOUND,
+        value={
+            "room_id": msg.room_id,
+            "sender_id": user_id,
+            "content": msg.content,
+        },
+        key=msg.room_id,
+    )
+
+
+@sio.event
+async def chat_history(sid: str, data: dict):
+    """Fetch chat history via chat-service REST API."""
+    user_id = registry.get_user_id(sid)
+    if not user_id:
+        await sio.emit("chat_error", {"error": "not authenticated", "code": "auth_error"}, to=sid)
+        return
+
+    try:
+        req = ChatHistory(**data)
+    except Exception as e:
+        await sio.emit("chat_error", {"error": str(e), "code": "validation_error"}, to=sid)
+        return
+
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {"limit": req.limit}
+            if req.cursor:
+                params["cursor"] = req.cursor
+            resp = await client.get(
+                f"{settings.CHAT_SERVICE_URL}/chat/rooms/{req.room_id}/messages",
+                params=params,
+                headers={"Authorization": f"Bearer {_get_internal_token()}"},
+                timeout=10.0,
+            )
+            if resp.status_code == 200:
+                result = resp.json()
+                result["room_id"] = req.room_id
+                await sio.emit("chat_history_response", result, to=sid)
+            else:
+                await sio.emit("chat_error", {
+                    "error": "failed to fetch history",
+                    "code": "server_error",
+                    "room_id": req.room_id,
+                }, to=sid)
+    except Exception as e:
+        await sio.emit("chat_error", {
+            "error": str(e),
+            "code": "server_error",
+            "room_id": req.room_id,
+        }, to=sid)
+
+
+def _get_internal_token() -> str:
+    """Generate a minimal internal JWT for service-to-service calls."""
+    import time as _time
+
+    import jwt as pyjwt
+
+    payload = {
+        "sub": "socketio-handler",
+        "role": "admin",
+        "type": "access",
+        "iat": int(_time.time()),
+        "exp": int(_time.time()) + 300,
+    }
+    return pyjwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")

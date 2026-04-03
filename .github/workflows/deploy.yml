@@ -19,6 +19,8 @@ jobs:
           GATEWAY_SECRET: ${{ secrets.GATEWAY_SECRET }}
           SERVICE_HOST: ${{ secrets.SERVICE_HOST }}
           SERVICE_PORT: ${{ secrets.SERVICE_PORT }}
+          CONFIG_SERVICE_URL: ${{ secrets.CONFIG_SERVICE_URL }}
+          CONFIG_SERVICE_API_KEY: ${{ secrets.CONFIG_SERVICE_API_KEY }}
         run: |
           docker network create companion-net 2>/dev/null || true
           docker compose -f docker-compose.prod.yml build

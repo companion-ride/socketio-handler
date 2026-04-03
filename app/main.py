@@ -10,6 +10,8 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from loguru import logger
 
+from app.config import settings
+from app.config_client import ConfigClient
 from app.health.router import router as health_router
 from app.kafka.consumer import kafka_consumer
 from app.kafka.producer import kafka_producer
@@ -70,9 +72,38 @@ async def _gateway_deregister() -> None:
         logger.warning(f"Could not deregister from api-gateway: {exc}")
 
 
+_config_client: ConfigClient | None = None
+
+
+def _apply_socketio_config(config: dict) -> None:
+    if "rate_limit_location_per_second" in config:
+        settings.RATE_LIMIT_LOCATION_PER_SECOND = config["rate_limit_location_per_second"]
+    if "rate_limit_default_per_second" in config:
+        settings.RATE_LIMIT_DEFAULT_PER_SECOND = config["rate_limit_default_per_second"]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _config_client
     logger.info("Starting socketio-handler...")
+
+    # Config-service integration
+    if settings.CONFIG_SERVICE_URL and settings.CONFIG_SERVICE_API_KEY:
+        _config_client = ConfigClient(
+            settings.CONFIG_SERVICE_URL,
+            settings.CONFIG_SERVICE_API_KEY,
+            "socketio",
+        )
+        try:
+            config, changed = await _config_client.fetch()
+            if changed and config:
+                _apply_socketio_config(config)
+                logger.info("Loaded config from config-service")
+        except Exception as exc:
+            logger.warning(f"config-service unavailable at startup, using defaults: {exc}")
+
+        await _config_client.start_polling(30, _apply_socketio_config)
+
     await kafka_producer.start()
     await kafka_consumer.start()
     await _gateway_register()
@@ -81,6 +112,9 @@ async def lifespan(app: FastAPI):
     await _gateway_deregister()
     await kafka_consumer.stop()
     await kafka_producer.stop()
+
+    if _config_client:
+        await _config_client.stop()
 
 
 fastapi_app = FastAPI(
