@@ -20,8 +20,11 @@ services:
     restart: unless-stopped
     networks:
       - companion-net
+      - kafka_compose_default
 
 networks:
   companion-net:
     external: true
     name: companion-net
+  kafka_compose_default:
+    external: true
