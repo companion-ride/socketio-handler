@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     CONFIG_SERVICE_URL: str = ""
     CONFIG_SERVICE_API_KEY: str = ""
 
+    # Chat service
+    CHAT_SERVICE_URL: str = "http://localhost:8083"
+
+    # Chat Kafka topics (produce)
+    KAFKA_TOPIC_CHAT_INBOUND: str = "chat-messages-inbound"
+
+    # Chat Kafka topics (consume)
+    KAFKA_TOPIC_CHAT_OUTBOUND: str = "chat-messages-outbound"
+    KAFKA_TOPIC_CHAT_ROOM_EVENTS: str = "chat-room-events"
+
     RATE_LIMIT_LOCATION_PER_SECOND: int = 2
     RATE_LIMIT_DEFAULT_PER_SECOND: int = 5
 

@@ -62,3 +62,17 @@ class DriverLocationToPassengerEvent(BaseModel):
     latitude: float
     longitude: float
     timestamp: datetime
+
+
+# --- Chat events ---
+
+
+class ChatMessage(BaseModel):
+    room_id: str
+    content: str = Field(..., min_length=1, max_length=1000)
+
+
+class ChatHistory(BaseModel):
+    room_id: str
+    cursor: str | None = None
+    limit: int = Field(default=50, ge=1, le=100)

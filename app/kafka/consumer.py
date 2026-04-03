@@ -47,6 +47,22 @@ class KafkaConsumerService:
                 )
             )
         )
+        self._tasks.append(
+            asyncio.create_task(
+                self._consume_topic(
+                    settings.KAFKA_TOPIC_CHAT_OUTBOUND,
+                    self._handle_chat_outbound,
+                )
+            )
+        )
+        self._tasks.append(
+            asyncio.create_task(
+                self._consume_topic(
+                    settings.KAFKA_TOPIC_CHAT_ROOM_EVENTS,
+                    self._handle_chat_room_event,
+                )
+            )
+        )
         logger.info("Kafka consumers started")
 
     async def _consume_topic(self, topic: str, handler) -> None:
@@ -120,6 +136,55 @@ class KafkaConsumerService:
             sid = registry.get_sid(str(user_id))
             if sid:
                 await sio.emit(event_name, data, to=sid)
+
+    async def _handle_chat_outbound(self, data: dict) -> None:
+        """Handle messages from chat-messages-outbound topic."""
+        msg_type = data.get("type")
+
+        if msg_type == "message":
+            message = data.get("message", {})
+            room_id = message.get("room_id", "")
+            await sio.emit("chat_new_message", message, room=f"chat_{room_id}")
+
+        elif msg_type == "error":
+            error = data.get("error", {})
+            user_id = error.get("user_id", "")
+            sid = registry.get_sid(user_id)
+            if sid:
+                await sio.emit("chat_error", error, to=sid)
+
+    async def _handle_chat_room_event(self, data: dict) -> None:
+        """Handle events from chat-room-events topic."""
+        event = data.get("event")
+        room_id = data.get("room_id", "")
+
+        if event == "room_created":
+            participants = data.get("participants", [])
+            for p in participants:
+                user_id = p.get("user_id", "")
+                sid = registry.get_sid(user_id)
+                if sid:
+                    sio.enter_room(sid, f"chat_{room_id}")
+                    await sio.emit("chat_room_created", {
+                        "room_id": room_id,
+                        "type": data.get("type", ""),
+                        "participants": participants,
+                    }, to=sid)
+
+        elif event == "room_closed":
+            await sio.emit("chat_room_closed", {"room_id": room_id}, room=f"chat_{room_id}")
+
+        elif event == "participant_joined":
+            user_id = data.get("user_id", "")
+            sid = registry.get_sid(user_id)
+            if sid:
+                sio.enter_room(sid, f"chat_{room_id}")
+
+        elif event == "participant_left":
+            user_id = data.get("user_id", "")
+            sid = registry.get_sid(user_id)
+            if sid:
+                sio.leave_room(sid, f"chat_{room_id}")
 
     async def stop(self) -> None:
         for task in self._tasks:
