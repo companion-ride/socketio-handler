@@ -95,6 +95,7 @@ async def location_update(sid: str, data: dict):
     }
 
     await kafka_producer.send(topic, message, key=user_id)
+    logger.info("location_update from user={}, role={}, lat={}, lon={}", user_id, role, payload.latitude, payload.longitude)
     return {"status": "ok"}
 
 
