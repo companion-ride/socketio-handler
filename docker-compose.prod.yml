@@ -15,6 +15,7 @@ services:
       SERVICE_PORT: ${SERVICE_PORT}
       CONFIG_SERVICE_URL: ${CONFIG_SERVICE_URL}
       CONFIG_SERVICE_API_KEY: ${CONFIG_SERVICE_API_KEY}
+      CHAT_SERVICE_URL: ${CHAT_SERVICE_URL}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
