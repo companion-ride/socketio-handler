@@ -115,6 +115,12 @@ class KafkaConsumerService:
         if sid:
             await sio.emit("driver_assigned", data, to=sid)
             await sio.enter_room(sid, ride_id)
+            logger.info("driver_assigned emitted to passenger={}, ride_id={}", passenger_id, ride_id)
+        else:
+            logger.warning(
+                "driver_assigned NOT delivered: passenger={} has no active sid (ride_id={})",
+                passenger_id, ride_id,
+            )
 
         driver_id = data.get("driver_id")
         if driver_id:
@@ -122,6 +128,12 @@ class KafkaConsumerService:
             if driver_sid:
                 await sio.emit("driver_assigned", data, to=driver_sid)
                 await sio.enter_room(driver_sid, ride_id)
+                logger.info("driver_assigned emitted to driver={}, ride_id={}", driver_id, ride_id)
+            else:
+                logger.warning(
+                    "driver_assigned NOT delivered: driver={} has no active sid (ride_id={})",
+                    driver_id, ride_id,
+                )
 
     async def _handle_driver_location_to_passenger(self, data: dict) -> None:
         passenger_id = data.get("passenger_id")
@@ -133,10 +145,18 @@ class KafkaConsumerService:
     async def _handle_ride_notification(self, data: dict) -> None:
         user_id = data.get("user_id")
         event_name = data.get("event", "notification")
-        if user_id:
-            sid = registry.get_sid(str(user_id))
-            if sid:
-                await sio.emit(event_name, data, to=sid)
+        if not user_id:
+            logger.warning("ride_notification missing user_id: event={}, data={}", event_name, data)
+            return
+        sid = registry.get_sid(str(user_id))
+        if sid:
+            await sio.emit(event_name, data, to=sid)
+            logger.info("{} emitted to user={}, sid={}", event_name, user_id, sid)
+        else:
+            logger.warning(
+                "{} NOT delivered: user={} has no active sid (event was dropped)",
+                event_name, user_id,
+            )
 
     async def _handle_chat_outbound(self, data: dict) -> None:
         """Handle messages from chat-messages-outbound topic."""

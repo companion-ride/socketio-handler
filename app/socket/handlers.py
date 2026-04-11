@@ -117,8 +117,9 @@ async def ride_request(sid: str, data: dict):
     except ValidationError as e:
         return {"error": e.errors()}
 
+    request_id = str(uuid.uuid4())
     message = {
-        "request_id": str(uuid.uuid4()),
+        "request_id": request_id,
         "passenger_id": user_id,
         "pickup": {"latitude": payload.pickup_lat, "longitude": payload.pickup_lon},
         "dropoff": {"latitude": payload.dropoff_lat, "longitude": payload.dropoff_lon},
@@ -129,9 +130,20 @@ async def ride_request(sid: str, data: dict):
         "action": "request",
     }
 
-    await kafka_producer.send(settings.KAFKA_TOPIC_RIDE_REQUESTS, message, key=user_id)
-    logger.info("Ride request from passenger={}", user_id)
-    return {"status": "ok", "request_id": message["request_id"]}
+    try:
+        await kafka_producer.send(settings.KAFKA_TOPIC_RIDE_REQUESTS, message, key=user_id)
+    except Exception as exc:
+        logger.exception(
+            "Failed to produce ride_request to Kafka: passenger={}, request_id={}, err={}",
+            user_id, request_id, exc,
+        )
+        return {"error": "failed to send ride request"}
+
+    logger.info(
+        "ride_request produced to Kafka: passenger={}, request_id={}, topic={}",
+        user_id, request_id, settings.KAFKA_TOPIC_RIDE_REQUESTS,
+    )
+    return {"status": "ok", "request_id": request_id}
 
 
 @sio.event
