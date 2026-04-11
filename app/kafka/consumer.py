@@ -166,6 +166,10 @@ class KafkaConsumerService:
             message = data.get("message", {})
             room_id = message.get("room_id", "")
             await sio.emit("chat_new_message", message, room=f"chat_{room_id}")
+            logger.info(
+                "chat_new_message broadcast to room=chat_{}, msg_id={}, sender={}",
+                room_id, message.get("message_id"), message.get("sender_id"),
+            )
 
         elif msg_type == "error":
             error = data.get("error", {})
@@ -173,6 +177,9 @@ class KafkaConsumerService:
             sid = registry.get_sid(user_id)
             if sid:
                 await sio.emit("chat_error", error, to=sid)
+                logger.info("chat_error delivered to user={}", user_id)
+            else:
+                logger.warning("chat_error dropped: user={} has no active sid", user_id)
 
     async def _handle_chat_room_event(self, data: dict) -> None:
         """Handle events from chat-room-events topic."""

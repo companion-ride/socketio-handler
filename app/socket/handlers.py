@@ -47,12 +47,20 @@ async def connect(sid: str, environ: dict, auth: dict | None = None):
             )
             if resp.status_code == 200:
                 rooms = resp.json()
+                joined = 0
                 for room in rooms:
                     room_id = room.get("room_id", "")
                     if room_id:
                         sio.enter_room(sid, f"chat_{room_id}")
-    except Exception:
-        pass  # Non-critical: user can still receive messages via direct emit
+                        joined += 1
+                logger.info("Auto-joined {} chat rooms for user={}", joined, user_id)
+            else:
+                logger.warning(
+                    "Auto-join: chat-service returned {} for user={}",
+                    resp.status_code, user_id,
+                )
+    except Exception as e:
+        logger.warning("Auto-join chat rooms failed for user={}: {}", user_id, e)
 
     return True
 
@@ -204,6 +212,7 @@ async def chat_message(sid: str, data: dict):
     try:
         msg = ChatMessage(**data)
     except Exception as e:
+        logger.warning("chat_message validation failed: user={}, err={}", user_id, e)
         await sio.emit("chat_error", {"error": str(e), "code": "validation_error", "room_id": data.get("room_id", "")}, to=sid)
         return
 
@@ -215,6 +224,10 @@ async def chat_message(sid: str, data: dict):
             "content": msg.content,
         },
         key=msg.room_id,
+    )
+    logger.info(
+        "chat_message from user={}, room={}, len={}",
+        user_id, msg.room_id, len(msg.content),
     )
 
 
@@ -229,8 +242,14 @@ async def chat_history(sid: str, data: dict):
     try:
         req = ChatHistory(**data)
     except Exception as e:
+        logger.warning("chat_history validation failed: user={}, err={}", user_id, e)
         await sio.emit("chat_error", {"error": str(e), "code": "validation_error"}, to=sid)
         return
+
+    logger.info(
+        "chat_history request: user={}, room={}, cursor={}, limit={}",
+        user_id, req.room_id, req.cursor, req.limit,
+    )
 
     try:
         async with httpx.AsyncClient() as client:
@@ -247,13 +266,25 @@ async def chat_history(sid: str, data: dict):
                 result = resp.json()
                 result["room_id"] = req.room_id
                 await sio.emit("chat_history_response", result, to=sid)
+                logger.info(
+                    "chat_history_response sent: user={}, room={}",
+                    user_id, req.room_id,
+                )
             else:
+                logger.warning(
+                    "chat_history: chat-service returned {} for room={}, body={}",
+                    resp.status_code, req.room_id, resp.text[:200],
+                )
                 await sio.emit("chat_error", {
                     "error": "failed to fetch history",
                     "code": "server_error",
                     "room_id": req.room_id,
                 }, to=sid)
     except Exception as e:
+        logger.exception(
+            "chat_history failed: url={}/chat/rooms/{}/messages, err={}",
+            settings.CHAT_SERVICE_URL, req.room_id, e,
+        )
         await sio.emit("chat_error", {
             "error": str(e),
             "code": "server_error",
