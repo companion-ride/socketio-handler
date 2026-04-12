@@ -251,6 +251,11 @@ async def chat_history(sid: str, data: dict):
         user_id, req.room_id, req.cursor, req.limit,
     )
 
+    # Auto-join the caller to this chat room so they receive broadcasts.
+    # This is essential for admins who open a support ticket — they may not
+    # yet be a participant in the room, so auto-join on connect skips it.
+    sio.enter_room(sid, f"chat_{req.room_id}")
+
     try:
         async with httpx.AsyncClient() as client:
             params = {"limit": req.limit}
