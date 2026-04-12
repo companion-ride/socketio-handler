@@ -51,7 +51,7 @@ async def connect(sid: str, environ: dict, auth: dict | None = None):
                 for room in rooms:
                     room_id = room.get("room_id", "")
                     if room_id:
-                        sio.enter_room(sid, f"chat_{room_id}")
+                        await sio.enter_room(sid, f"chat_{room_id}")
                         joined += 1
                 logger.info("Auto-joined {} chat rooms for user={}", joined, user_id)
             else:
@@ -254,7 +254,7 @@ async def chat_history(sid: str, data: dict):
     # Auto-join the caller to this chat room so they receive broadcasts.
     # This is essential for admins who open a support ticket — they may not
     # yet be a participant in the room, so auto-join on connect skips it.
-    sio.enter_room(sid, f"chat_{req.room_id}")
+    await sio.enter_room(sid, f"chat_{req.room_id}")
 
     try:
         async with httpx.AsyncClient() as client:
