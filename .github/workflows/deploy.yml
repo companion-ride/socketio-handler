@@ -26,3 +26,4 @@ jobs:
           docker network create companion-net 2>/dev/null || true
           docker compose -f docker-compose.prod.yml build
           docker compose -f docker-compose.prod.yml up -d
+ 
