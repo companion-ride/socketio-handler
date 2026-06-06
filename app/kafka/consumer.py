@@ -192,7 +192,9 @@ class KafkaConsumerService:
                 user_id = p.get("user_id", "")
                 sid = registry.get_sid(user_id)
                 if sid:
-                    sio.enter_room(sid, f"chat_{room_id}")
+                    # enter_room is a coroutine on AsyncServer (python-socketio 5.x):
+                    # must be awaited or the user is never added to the room.
+                    await sio.enter_room(sid, f"chat_{room_id}")
                     await sio.emit("chat_room_created", {
                         "room_id": room_id,
                         "type": data.get("type", ""),
@@ -206,13 +208,20 @@ class KafkaConsumerService:
             user_id = data.get("user_id", "")
             sid = registry.get_sid(user_id)
             if sid:
-                sio.enter_room(sid, f"chat_{room_id}")
+                await sio.enter_room(sid, f"chat_{room_id}")
+                # Tell the joining user the room_id so they can open the chat,
+                # mirroring chat_room_created (participants may be partial here).
+                await sio.emit("chat_room_created", {
+                    "room_id": room_id,
+                    "type": data.get("type", "ride"),
+                    "participants": data.get("participants", []),
+                }, to=sid)
 
         elif event == "participant_left":
             user_id = data.get("user_id", "")
             sid = registry.get_sid(user_id)
             if sid:
-                sio.leave_room(sid, f"chat_{room_id}")
+                await sio.leave_room(sid, f"chat_{room_id}")
 
     async def stop(self) -> None:
         for task in self._tasks:
