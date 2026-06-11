@@ -26,8 +26,14 @@ class KafkaProducerService:
             logger.info("Kafka producer stopped")
 
     async def send(self, topic: str, value: dict, key: str | None = None) -> None:
-        if self._producer:
-            await self._producer.send_and_wait(topic, value=value, key=key)
+        if not self._producer:
+            logger.error(
+                "Kafka producer not started — dropping message (topic={}, key={}). "
+                "Check KAFKA_BOOTSTRAP_SERVERS and that producer.start() ran at app boot.",
+                topic, key,
+            )
+            raise RuntimeError("kafka producer not started")
+        await self._producer.send_and_wait(topic, value=value, key=key)
 
 
 kafka_producer = KafkaProducerService()
